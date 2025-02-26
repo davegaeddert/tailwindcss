@@ -748,4 +748,109 @@ mod scanner {
             ]
         );
     }
+    
+    #[test]
+    fn it_includes_explicit_source_when_ignored_by_top_level_gitignore() {
+        use std::fs;
+        use tempfile::tempdir;
+
+        // Create a temporary working directory
+        let dir = tempdir().unwrap().into_path();
+
+        // Initialize as a git repository so that .gitignore handling takes effect
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(&dir)
+            .output();
+
+        // Create a directory "template" with a file and a .gitignore at the root ignoring "template"
+        create_files_in(
+            &dir,
+            &[
+                (".gitignore", ".venv"),
+                (".venv/template/index.html", "content-['index.html']"),
+            ],
+        );
+
+        // Set up a glob source entry for scanning the "template" directory.
+        let sources = vec![GlobEntry {
+            base: dir.join(".venv/template").to_string_lossy().to_string(),
+            pattern: "**/*".to_owned(),
+        }];
+
+        // Even though the directory is ignored via the top-level .gitignore, it should still be scanned as an explicit source
+        let candidates_without_gitignore = Scanner::new(Some(sources)).scan();
+        assert_eq!(candidates_without_gitignore, vec!["content-['index.html']".to_owned()]);
+    }
+
+    #[test]
+    fn it_includes_explicit_source_when_ignored_by_top_level_gitignore_glob() {
+        use std::fs;
+        use tempfile::tempdir;
+
+        // Create a temporary working directory
+        let dir = tempdir().unwrap().into_path();
+
+        // Initialize as a git repository so that .gitignore handling takes effect
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(&dir)
+            .output();
+
+        // Create a directory "template" with a file and a .gitignore at the root ignoring "template"
+        create_files_in(
+            &dir,
+            &[
+                (".gitignore", ".venv/**/*"),
+                (".venv/template/index.html", "content-['index.html']"),
+            ],
+        );
+
+        // Set up a glob source entry for scanning the "template" directory.
+        let sources = vec![GlobEntry {
+            base: dir.join(".venv/template").to_string_lossy().to_string(),
+            pattern: "**/*".to_owned(),
+        }];
+
+        // Even though the directory is ignored via the top-level .gitignore, it should still be scanned as an explicit source
+        let candidates_without_gitignore = Scanner::new(Some(sources)).scan();
+        assert_eq!(candidates_without_gitignore, vec!["content-['index.html']".to_owned()]);
+    }
+
+    #[test]
+    fn it_includes_explicit_source_overriding_nested_gitignore() {
+        use std::fs;
+        use tempfile::tempdir;
+
+        // Create a temporary working directory
+        let dir = tempdir().unwrap().into_path();
+
+        // Initialize as a git repository so that .gitignore handling takes effect
+        let _ = std::process::Command::new("git")
+            .arg("init")
+            .current_dir(&dir)
+            .output();
+
+        // Create a directory "template" with a file and both a root .gitignore ignoring "template"
+        // and a nested .gitignore that ignores all contents in the "template" folder.
+        create_files_in(
+            &dir,
+            &[
+                (".gitignore", ".venv"),
+                (".venv/template/index.html", "content-['index.html']"),
+                (".venv/.gitignore", "*"),
+            ],
+        );
+
+        // Set up a glob source entry for scanning the "template" directory.
+        let sources = vec![GlobEntry {
+            base: dir.join(".venv/template").to_string_lossy().to_string(),
+            pattern: "**/*".to_owned(),
+        }];
+
+        // Even though the nested .gitignore ignores all files, the explicit source should override it.
+        let candidates_without_gitignore = Scanner::new(Some(sources)).scan();
+        assert_eq!(candidates_without_gitignore, vec!["content-['index.html']".to_owned()]);
+    }
+    
 }
