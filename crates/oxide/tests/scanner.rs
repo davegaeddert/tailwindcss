@@ -852,4 +852,5 @@ mod scanner {
         let candidates_without_gitignore = Scanner::new(Some(sources)).scan();
         assert_eq!(candidates_without_gitignore, vec!["content-['index.html']".to_owned()]);
     }
+    
 }
